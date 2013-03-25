@@ -177,9 +177,15 @@ void decode( const stateType, stateType* );
 void execute( const stateType, stateType* );
 void memory( const stateType, stateType* );
 void writeBack( const stateType, stateType* );
+
+int detectAndStall( const stateType, IDEXType* );
+void forward( const stateType, IDEXType* );
+
+/*
 int resolveHazard( const stateType, stateType* ); // TODO: eliminate.
-void forward( const stateType, stateType* );
-int detectAndStall( const stateType );
+void forward( const stateType, stateType* ); // TODO: eliminate
+int detectAndStall( const stateType ); // TODO: eliminate
+*/
 
 /*****************************************************************************//*****************************************************************************/
 
@@ -241,15 +247,6 @@ int main(int argc, const char *argv[])
 		memory( state, &newState );
 		/* --------------------- WB stage --------------------- */
 		writeBack( state, &newState );
-
-		// DETECT AND STALL
-		if( detectAndStall( state ) )
-		{
-			fprintf(stderr, "Stalling...\n");
-			newState.pc--;
-			newState.IFID = state.IFID;
-			newState.IDEX.instr = NOOPINSTRUCTION;
-		}
 
 		state = newState; // conclusion.
 	}
@@ -347,7 +344,6 @@ void loadInstructions( stateType* statePtr, const char *filename )
 }
 
 /*****************************************************************************//*****************************************************************************/
-/*****************************************************************************//*****************************************************************************/
 
 /*
  	* Instruction Fetch Stage.
@@ -402,6 +398,12 @@ void decode( const stateType state, stateType* newStatePtr )
 	output.readRegB = state.reg[ field1(input.instr) ];
 	output.offset = field2( input.instr );
 
+	if( detectAndStall( state, &output ) == 1 ) {
+		newStatePtr->pc = state.pc;
+		newStatePtr->IFID = input;
+		output.instr = NOOPINSTRUCTION;
+	}
+
 	// Update State.
 	newStatePtr->IDEX = output;
 }
@@ -434,27 +436,25 @@ void execute( const stateType state, stateType* newStatePtr )
 	// noop.
 	output.instr = input.instr;
 
+	// now forward data that might needed.
+	forward( state, &input );
+
 	// shorthand.
-	int regA = input.readRegA;
-	int regB = input.readRegB;
+	int dataRegA = input.readRegA;
+	int dataRegB = input.readRegB;
 	int offset = input.offset;
-
-
-
-	// Calculate aluResult.
-	int aluResult;
 
 	switch( opcode(state.IDEX.instr) )
 	{
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case ADD:
-			aluResult = regA + regB;
+			output.aluResult = dataRegA + dataRegB;
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case NAND:
-			aluResult = ~(regA & regB);
+			output.aluResult = ~(dataRegA & dataRegB);
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case CMOV:
 		/*
 			* CMOV is treated as faithfully as an R-Type instr. as it
@@ -466,37 +466,37 @@ void execute( const stateType state, stateType* newStatePtr )
 			* reduces to in the event that it does not modify the contents
 			* of the destReg.
 		*/ 
-			if( regB != 0 ) {
-				aluResult = regA;
+			if( dataRegB != 0 ) {
+				output.aluResult = dataRegA;
 			}
 			else {
-				newStatePtr->EXMEM.instr = NOOPINSTRUCTION;
+				output.instr = NOOPINSTRUCTION;
 			}
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case LW:
 		case SW:
 			// Calculate the offset field.
-			aluResult = regA + offset;
+			output.aluResult = dataRegA + offset;
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case BEQ:
 			// Check equality.
-			aluResult = (regA == regB);
+			output.aluResult = (dataRegA == dataRegB);
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case HALT:
 		case NOOP:
 			// do nothing.
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		default: 
 		// Error.
 			fprintf( stderr, "ERROR: Instruction not recognized:" );
 			printInstruction(state.IDEX.instr);
 			exit(1);
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 	}
 
 	// Update State.
@@ -536,6 +536,7 @@ void memory( const stateType state, stateType* newStatePtr )
 			break;
 		case LW:
 			// load word from dataMem
+			fprintf(stderr, "Now you can read from LW\n");
 			output.writeData = state.dataMem[ input.aluResult ];
 			break;
 		case SW:
@@ -549,7 +550,7 @@ void memory( const stateType state, stateType* newStatePtr )
 			break;
 	}
 
-	// Update Pipeline Register.
+	// Update State.
 	newStatePtr->MEMWB = output;
 }
 
@@ -568,45 +569,46 @@ void memory( const stateType state, stateType* newStatePtr )
  */
 void writeBack( const stateType state, stateType* newStatePtr )
 {
-	// Data to be written.
-	int writeData = state.MEMWB.writeData;
+	MEMWBType input = state.MEMWB;
+	WBENDType output;
 
-	// For I-Type instructions.
-	int regB = field1(state.MEMWB.instr);
+	output.instr = input.instr;
+	output.writeData = input.writeData;
 
-	// For R-Type instructions.
-	int destReg = field2(state.MEMWB.instr);
+	int destReg;
 
-	switch( opcode(state.MEMWB.instr) )
+	switch( opcode(input.instr) )
 	{
 		/*****************************************/
 		case ADD:
 		case NAND:
 		case CMOV:
-			// Write Data to destReg.
-			newStatePtr->reg[destReg] = writeData;
+			destReg = field2(input.instr);
+			newStatePtr->reg[ destReg ] = input.writeData;
 			break;
 		/*****************************************/
 		case LW:
+			destReg = field1(input.instr);
 			// Write Data to regB.
-			newStatePtr->reg[regB] = writeData;
+			newStatePtr->reg[ destReg ] = input.writeData;
 			break;
 		/*****************************************/
 		case NOOP:
 		case HALT:
 		case BEQ:
 		case SW:
+			// do nothing.
 			break;
 		/*****************************************/
 	}
 
-	// Update Pipeline Register.
-	newStatePtr->WBEND.instr = state.MEMWB.instr;
-	newStatePtr->WBEND.writeData = state.MEMWB.writeData;
+	// Update State.
+	newStatePtr->WBEND = output;
 }
 
 /*****************************************************************************//*****************************************************************************/
-
+//	HAZARD RESOLUTION
+/*****************************************************************************//*****************************************************************************/
 
 /*
 	* 	Hazard resolver. Analyzes previous state for any data hazards
@@ -617,27 +619,35 @@ void writeBack( const stateType state, stateType* newStatePtr )
 	* 	=> returns 1 if a stall is required.
 	*	=> returns 0 if no stall is required.
 */
-int resolveHazard( const stateType state, stateType* newStatePtr ) 
+int detectAndStall( const stateType state, IDEXType* IDEX ) 
 {
-	// Sanitize results so that the Execute stage can operate
-	// with the proper values. regA and regB contents are used
-	// universally with all instructions. If the IDEX.readReg#
-	// values are updated, then execute will operate with the 
-	// proper values.
-	int regA = field0(state.IDEX.instr);
-	int regB = field1(state.IDEX.instr);
+	int regA = field0( IDEX->instr );
+	int regB = field1( IDEX->instr );
 
+	return( opcode(state.IDEX.instr) == LW 
+			&& (	
+				 regA == field1(state.IDEX.instr) 
+				 || regB == field1(state.IDEX.instr) 
+				) );
+}
 
-	/*
-		*	Pipeline registers are checked for data hazards
-		*	in order of increasing recency in order to forward
-		*	the most up-to-date values to the IDEX register.
-	*/
+/*****************************************************************************//*****************************************************************************/
+
+/*
+	*	Pipeline registers are checked for data hazards
+	*	in order of increasing recency in order to forward
+	*	the most up-to-date values to the IDEX register.
+*/
+void forward( const stateType state, IDEXType* IDEX )
+{
+
+	int regA = field0( IDEX->instr );
+	int regB = field1( IDEX->instr );
 	
 	// Check WBEND for hazards.
 	switch( opcode(state.WBEND.instr) )
 	{
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case ADD:
 		case NAND:
 		case CMOV:
@@ -647,13 +657,13 @@ int resolveHazard( const stateType state, stateType* newStatePtr )
 			* by the destReg of the R-type instr. at this stage.
 		*/
 			if( regA == field2(state.WBEND.instr) ) {
-				newStatePtr->IDEX.readRegA = state.WBEND.writeData;
+				IDEX->readRegA = state.WBEND.writeData;
 			}
 			if( regB == field2(state.WBEND.instr) ) {
-				newStatePtr->IDEX.readRegB = state.WBEND.writeData;
+				IDEX->readRegB = state.WBEND.writeData;
 			}
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case LW: 
 		/*
 			* In the WB/END pipeline register, the value specified by
@@ -661,27 +671,26 @@ int resolveHazard( const stateType state, stateType* newStatePtr )
 			* this value to the IDEX pipeline register.
 		*/
 			if( regA == field1(state.WBEND.instr) ) {
-				newStatePtr->IDEX.readRegA = state.WBEND.writeData;
+				IDEX->readRegA = state.WBEND.writeData;
 			}
 			if( regB == field1(state.WBEND.instr) ) {
-				newStatePtr->IDEX.readRegB = state.WBEND.writeData;
+				IDEX->readRegB = state.WBEND.writeData;
 			}
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case BEQ:
 		case SW:
 		case NOOP:
 		case HALT:
 			// No action neccessary.
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 	}
-
 
 	// Check MEM/WB for hazards.
 	switch( opcode(state.MEMWB.instr) )
 	{
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case ADD:
 		case NAND:
 		case CMOV:
@@ -690,186 +699,14 @@ int resolveHazard( const stateType state, stateType* newStatePtr )
 			* are in the writeData register and their target is specified
 			* by the destReg of the R-type instr. at this stage.
 		*/
-			if( regA == field2(state.MEMWB.instr) ) 
-			{
-				newStatePtr->IDEX.readRegA = state.MEMWB.writeData;
+			if( regA == field2(state.MEMWB.instr) ) {
+				IDEX->readRegA = state.MEMWB.writeData;
 			}
-			if( regB == field2(state.MEMWB.instr) ) 
-			{
-				newStatePtr->IDEX.readRegB = state.MEMWB.writeData;
+			if( regB == field2(state.MEMWB.instr) ) {
+				IDEX->readRegB = state.MEMWB.writeData;
 			}
 			break;
-		///////////////////////////////////////////
-		case LW: 
-		/*
-			* In the MEM/WB pipeline register, the value specified by
-			* field1 has already been loaded, and we must simply forward
-			* this value to the IDEX pipeline register.
-		*/
-			if( regA == field1(state.MEMWB.instr) ) 
-			{
-				newStatePtr->IDEX.readRegA = state.MEMWB.writeData;
-			}
-			if( regB == field1(state.MEMWB.instr) ) 
-			{
-				newStatePtr->IDEX.readRegB = state.MEMWB.writeData;
-			}
-			break;
-		/*****************************************/
-		case BEQ:
-		case SW:
-		case NOOP:
-		case HALT:
-			// No action neccessary.
-			break;
-		/*****************************************/
-	}
-
-
-	// Check EX/MEM for hazards.
-	switch( opcode(state.EXMEM.instr) )
-	{
-		/*****************************************/
-		case ADD:
-		case NAND:
-		case CMOV:
-		/*
-			* Compare the input regA and regB to the destReg of the instr.
-			* in EXMEM since it's (in this case) an R-Type and its value will 
-			* be waiting in aluResult. This includes CMOV since this will
-			* actually be a NOOP if CMOV does not modify its destReg.
-		*/
-			if( regA == field2(state.EXMEM.instr) ) {
-				newStatePtr->IDEX.readRegA = state.EXMEM.aluResult;
-			}
-			if( regB == field2(state.EXMEM.instr) ) {
-				newStatePtr->IDEX.readRegB = state.EXMEM.aluResult;
-			}
-			break;
-		/*****************************************/
-		case LW:
-		/*
-			* If a LW is dected in the EXMEM pipeline, then the CPU has only
-			* just calculated the offset for this instr and has not yet been
-			* loaded from memory. In this case the only resolution is to stall.
-		*/
-			if( regA == field1(state.EXMEM.instr)
-				|| regB == field1(state.EXMEM.instr) )
-			{
-				return 1;
-			}
-			break;
-		/*****************************************/
-		case SW:
-		case BEQ:
-		case NOOP:
-		case HALT:
-			// No action neccessary.
-			break;
-		/*****************************************/
-	}
-
-
- 	// no stall necessary.
-	return 0;
-}
-
-int detectAndStall( const stateType state )
-{
-	// Figure out if IDEX has a value that depends on the result of a
-	// LW op that isn't prepared.
-	int regA = field0(state.IDEX.instr);
-	int regB = field1(state.IDEX.instr);
-
-	if( opcode(state.EXMEM.instr) == LW ) {
-		return ( regA == field1(state.EXMEM.instr) 
-				 || regB == field1(state.EXMEM.instr) );
-	}
-	else {
-		return 0;
-	}
-}
-
-
-void forward( const stateType state, stateType* newStatePtr )
-{
-	// Find the registers we're dealing with
-	int regA = field1( state.IDEX.instr );
-	int regB = field1( state.IDEX.instr );
-
-
-	/*
-		*	Pipeline registers are checked for data hazards
-		*	in order of increasing recency in order to forward
-		*	the most up-to-date values to the IDEX register.
-	*/
-
-	// Check WBEND for data hazards.
-	switch( opcode(state.WBEND.instr) )
-	{
-		/*****************************************/
-		case ADD:
-		case NAND:
-		case CMOV:
-		/*
-			* These instructions are simple because the updated values
-			* are in the writeData register and their target is specified
-			* by the destReg of the R-type instr. at this stage.
-		*/
-			if( regA == field2(state.WBEND.instr) ) {
-				newStatePtr->IDEX.readRegA = state.WBEND.writeData;
-			}
-			if( regB == field2(state.WBEND.instr) ) {
-				newStatePtr->IDEX.readRegB = state.WBEND.writeData;
-			}
-			break;
-		/*****************************************/
-		case LW: 
-		/*
-			* In the WB/END pipeline register, the value specified by
-			* field1 has already been loaded, and we must simply forward
-			* this value to the IDEX pipeline register.
-		*/
-			if( regA == field1(state.WBEND.instr) ) {
-				newStatePtr->IDEX.readRegA = state.WBEND.writeData;
-			}
-			if( regB == field1(state.WBEND.instr) ) {
-				newStatePtr->IDEX.readRegB = state.WBEND.writeData;
-			}
-			break;
-		/*****************************************/
-		case BEQ:
-		case SW:
-		case NOOP:
-		case HALT:
-			// No action neccessary.
-			break;
-		/*****************************************/
-	}
-
-
-	// Check MEM/WB for data hazards.
-	switch( opcode(state.MEMWB.instr) )
-	{
-		/*****************************************/
-		case ADD:
-		case NAND:
-		case CMOV:
-		/*
-			* These instructions are simple because the updated values
-			* are in the writeData register and their target is specified
-			* by the destReg of the R-type instr. at this stage.
-		*/
-			if( regA == field2(state.MEMWB.instr) ) 
-			{
-				newStatePtr->IDEX.readRegA = state.MEMWB.writeData;
-			}
-			if( regB == field2(state.MEMWB.instr) ) 
-			{
-				newStatePtr->IDEX.readRegB = state.MEMWB.writeData;
-			}
-			break;
-		///////////////////////////////////////////
+		/*-------------------------------------------------------------*/
 		case LW: 
 		/*
 			* In the MEM/WB pipeline register, the value specified by
@@ -877,28 +714,27 @@ void forward( const stateType state, stateType* newStatePtr )
 			* this value to the IDEX pipeline register.
 		*/
 			if( regA == field1(state.MEMWB.instr) ) {
-				newStatePtr->IDEX.readRegA = state.MEMWB.writeData;
+				IDEX->readRegA = state.MEMWB.writeData;
 			}
 			if( regB == field1(state.MEMWB.instr) ) {
-				newStatePtr->IDEX.readRegB = state.MEMWB.writeData;
+				IDEX->readRegB = state.MEMWB.writeData;
 			}
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case BEQ:
 		case SW:
 		case NOOP:
 		case HALT:
-
 			// No action neccessary.
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 	}
 
 
-	// Check EX/MEM for data hazards.
+	// Check EX/MEM for hazards.
 	switch( opcode(state.EXMEM.instr) )
 	{
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case ADD:
 		case NAND:
 		case CMOV:
@@ -909,13 +745,13 @@ void forward( const stateType state, stateType* newStatePtr )
 			* actually be a NOOP if CMOV does not modify its destReg.
 		*/
 			if( regA == field2(state.EXMEM.instr) ) {
-				newStatePtr->IDEX.readRegA = state.EXMEM.aluResult;
+				IDEX->readRegA = state.EXMEM.aluResult;
 			}
 			if( regB == field2(state.EXMEM.instr) ) {
-				newStatePtr->IDEX.readRegB = state.EXMEM.aluResult;
+				IDEX->readRegB = state.EXMEM.aluResult;
 			}
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case LW:
 		/*
 			* If a LW is dected in the EXMEM pipeline, then the CPU has only
@@ -925,20 +761,19 @@ void forward( const stateType state, stateType* newStatePtr )
 			if( regA == field1(state.EXMEM.instr)
 				|| regB == field1(state.EXMEM.instr) )
 			{
-				fprintf(stderr, "ERROR: LW not stalled.\n");
-				newStatePtr->pc--;
-				newStatePtr->IFID = state.IFID;
-				newStatePtr->IDEX.instr = NOOPINSTRUCTION;
-				//exit(1);
+				// Uncaught error.
+				fprintf(stderr, "ERROR: Uncaught stall!\n");
+				exit(1);
 			}
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case SW:
 		case BEQ:
 		case NOOP:
 		case HALT:
 			// No action neccessary.
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 	}
+
 }
