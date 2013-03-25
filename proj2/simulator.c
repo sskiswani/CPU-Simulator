@@ -536,7 +536,6 @@ void memory( const stateType state, stateType* newStatePtr )
 			break;
 		case LW:
 			// load word from dataMem
-			fprintf(stderr, "Now you can read from LW\n");
 			output.writeData = state.dataMem[ input.aluResult ];
 			break;
 		case SW:
@@ -579,27 +578,27 @@ void writeBack( const stateType state, stateType* newStatePtr )
 
 	switch( opcode(input.instr) )
 	{
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case ADD:
 		case NAND:
 		case CMOV:
 			destReg = field2(input.instr);
 			newStatePtr->reg[ destReg ] = input.writeData;
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case LW:
 			destReg = field1(input.instr);
 			// Write Data to regB.
 			newStatePtr->reg[ destReg ] = input.writeData;
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 		case NOOP:
 		case HALT:
 		case BEQ:
 		case SW:
 			// do nothing.
 			break;
-		/*****************************************/
+		/*-------------------------------------------------------------*/
 	}
 
 	// Update State.
@@ -625,10 +624,7 @@ int detectAndStall( const stateType state, IDEXType* IDEX )
 	int regB = field1( IDEX->instr );
 
 	return( opcode(state.IDEX.instr) == LW 
-			&& (	
-				 regA == field1(state.IDEX.instr) 
-				 || regB == field1(state.IDEX.instr) 
-				) );
+			&& (regA == field1(state.IDEX.instr) || regB == field1(state.IDEX.instr)) );
 }
 
 /*****************************************************************************//*****************************************************************************/
