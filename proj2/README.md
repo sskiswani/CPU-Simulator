@@ -427,7 +427,7 @@ Here is a sample assembly-language program:
 
 	lw	0	1	data1	$1= mem[data1]
 	halt
-data1	.fill	12345
+	data1	.fill	12345
 
 and its corresponding output.  Note especially how halt is done (the add 0 0 0
 instructions after the halt are from memory locations after the halt, which
