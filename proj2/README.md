@@ -108,7 +108,6 @@ Note that the instruction gets passed down the pipeline in its entirety.
 	} stateType;
 
 3. Problem
-
 3.1. Basic Structure
 
 Your task is to write a cycle-accurate simulator for the LC3101.  I recommend
@@ -329,98 +328,98 @@ Submission are done through blackboard.
 Here's the code for printState and associated functions.  Don't modify this
 code at all.
 
-void
-printState(stateType *statePtr)
-{
-    int i;
-    printf("\n@@@\nstate before cycle %d starts\n", statePtr->cycles);
-    printf("\tpc %d\n", statePtr->pc);
+	void
+	printState(stateType *statePtr)
+	{
+	    int i;
+	    printf("\n@@@\nstate before cycle %d starts\n", statePtr->cycles);
+	    printf("\tpc %d\n", statePtr->pc);
 
-    printf("\tdata memory:\n");
-	for (i=0; i<statePtr->numMemory; i++) {
-	    printf("\t\tdataMem[ %d ] %d\n", i, statePtr->dataMem[i]);
+	    printf("\tdata memory:\n");
+		for (i=0; i<statePtr->numMemory; i++) {
+		    printf("\t\tdataMem[ %d ] %d\n", i, statePtr->dataMem[i]);
+		}
+	    printf("\tregisters:\n");
+		for (i=0; i<NUMREGS; i++) {
+		    printf("\t\treg[ %d ] %d\n", i, statePtr->reg[i]);
+		}
+	    printf("\tIFID:\n");
+		printf("\t\tinstruction ");
+		printInstruction(statePtr->IFID.instr);
+		printf("\t\tpcPlus1 %d\n", statePtr->IFID.pcPlus1);
+	    printf("\tIDEX:\n");
+		printf("\t\tinstruction ");
+		printInstruction(statePtr->IDEX.instr);
+		printf("\t\tpcPlus1 %d\n", statePtr->IDEX.pcPlus1);
+		printf("\t\treadRegA %d\n", statePtr->IDEX.readRegA);
+		printf("\t\treadRegB %d\n", statePtr->IDEX.readRegB);
+		printf("\t\toffset %d\n", statePtr->IDEX.offset);
+	    printf("\tEXMEM:\n");
+		printf("\t\tinstruction ");
+		printInstruction(statePtr->EXMEM.instr);
+		printf("\t\tbranchTarget %d\n", statePtr->EXMEM.branchTarget);
+		printf("\t\taluResult %d\n", statePtr->EXMEM.aluResult);
+		printf("\t\treadRegB %d\n", statePtr->EXMEM.readRegB);
+	    printf("\tMEMWB:\n");
+		printf("\t\tinstruction ");
+		printInstruction(statePtr->MEMWB.instr);
+		printf("\t\twriteData %d\n", statePtr->MEMWB.writeData);
+	    printf("\tWBEND:\n");
+		printf("\t\tinstruction ");
+		printInstruction(statePtr->WBEND.instr);
+		printf("\t\twriteData %d\n", statePtr->WBEND.writeData);
 	}
-    printf("\tregisters:\n");
-	for (i=0; i<NUMREGS; i++) {
-	    printf("\t\treg[ %d ] %d\n", i, statePtr->reg[i]);
+
+	int
+	field0(int instruction)
+	{
+	    return( (instruction>>19) & 0x7);
 	}
-    printf("\tIFID:\n");
-	printf("\t\tinstruction ");
-	printInstruction(statePtr->IFID.instr);
-	printf("\t\tpcPlus1 %d\n", statePtr->IFID.pcPlus1);
-    printf("\tIDEX:\n");
-	printf("\t\tinstruction ");
-	printInstruction(statePtr->IDEX.instr);
-	printf("\t\tpcPlus1 %d\n", statePtr->IDEX.pcPlus1);
-	printf("\t\treadRegA %d\n", statePtr->IDEX.readRegA);
-	printf("\t\treadRegB %d\n", statePtr->IDEX.readRegB);
-	printf("\t\toffset %d\n", statePtr->IDEX.offset);
-    printf("\tEXMEM:\n");
-	printf("\t\tinstruction ");
-	printInstruction(statePtr->EXMEM.instr);
-	printf("\t\tbranchTarget %d\n", statePtr->EXMEM.branchTarget);
-	printf("\t\taluResult %d\n", statePtr->EXMEM.aluResult);
-	printf("\t\treadRegB %d\n", statePtr->EXMEM.readRegB);
-    printf("\tMEMWB:\n");
-	printf("\t\tinstruction ");
-	printInstruction(statePtr->MEMWB.instr);
-	printf("\t\twriteData %d\n", statePtr->MEMWB.writeData);
-    printf("\tWBEND:\n");
-	printf("\t\tinstruction ");
-	printInstruction(statePtr->WBEND.instr);
-	printf("\t\twriteData %d\n", statePtr->WBEND.writeData);
-}
 
-int
-field0(int instruction)
-{
-    return( (instruction>>19) & 0x7);
-}
+	int
+	field1(int instruction)
+	{
+	    return( (instruction>>16) & 0x7);
+	}
 
-int
-field1(int instruction)
-{
-    return( (instruction>>16) & 0x7);
-}
+	int
+	field2(int instruction)
+	{
+	    return(instruction & 0xFFFF);
+	}
 
-int
-field2(int instruction)
-{
-    return(instruction & 0xFFFF);
-}
+	int opcode(int instruction)
+	{
+	    return(instruction>>22);
+	}
 
-int opcode(int instruction)
-{
-    return(instruction>>22);
-}
+	void
+	printInstruction(int instr)
+	{
+	    char opcodeString[10];
+	    if (opcode(instr) == ADD) {
+		strcpy(opcodeString, "add");
+	    } else if (opcode(instr) == NAND) {
+		strcpy(opcodeString, "nand");
+	    } else if (opcode(instr) == LW) {
+		strcpy(opcodeString, "lw");
+	    } else if (opcode(instr) == SW) {
+		strcpy(opcodeString, "sw");
+	    } else if (opcode(instr) == BEQ) {
+		strcpy(opcodeString, "beq");
+	    } else if (opcode(instr) == CMOV) {
+		strcpy(opcodeString, "cmov");
+	    } else if (opcode(instr) == HALT) {
+		strcpy(opcodeString, "halt");
+	    } else if (opcode(instr) == NOOP) {
+		strcpy(opcodeString, "noop");
+	    } else {
+		strcpy(opcodeString, "data");
+	    }
 
-void
-printInstruction(int instr)
-{
-    char opcodeString[10];
-    if (opcode(instr) == ADD) {
-	strcpy(opcodeString, "add");
-    } else if (opcode(instr) == NAND) {
-	strcpy(opcodeString, "nand");
-    } else if (opcode(instr) == LW) {
-	strcpy(opcodeString, "lw");
-    } else if (opcode(instr) == SW) {
-	strcpy(opcodeString, "sw");
-    } else if (opcode(instr) == BEQ) {
-	strcpy(opcodeString, "beq");
-    } else if (opcode(instr) == CMOV) {
-	strcpy(opcodeString, "cmov");
-    } else if (opcode(instr) == HALT) {
-	strcpy(opcodeString, "halt");
-    } else if (opcode(instr) == NOOP) {
-	strcpy(opcodeString, "noop");
-    } else {
-	strcpy(opcodeString, "data");
-    }
-
-    printf("%s %d %d %d\n", opcodeString, field0(instr), field1(instr),
-	field2(instr));
-}
+	    printf("%s %d %d %d\n", opcodeString, field0(instr), field1(instr),
+		field2(instr));
+	}
 
 9. Sample Assembly-Language Program and Output
 
@@ -435,235 +434,235 @@ instructions after the halt are from memory locations after the halt, which
 were initialized to 0).  Do you know where the add 0 0 12345 instruction came
 from?
 
-memory[0]=8454146
-memory[1]=25165824
-memory[2]=12345
-3 memory words
-	instruction memory:
-		instrMem[ 0 ] lw 0 1 2
-		instrMem[ 1 ] halt 0 0 0
-		instrMem[ 2 ] add 0 0 12345
+	memory[0]=8454146
+	memory[1]=25165824
+	memory[2]=12345
+	3 memory words
+		instruction memory:
+			instrMem[ 0 ] lw 0 1 2
+			instrMem[ 1 ] halt 0 0 0
+			instrMem[ 2 ] add 0 0 12345
 
-@@@
-state before cycle 0 starts
-	pc 0
-	data memory:
-		dataMem[ 0 ] 8454146
-		dataMem[ 1 ] 25165824
-		dataMem[ 2 ] 12345
-	registers:
-		reg[ 0 ] 0
-		reg[ 1 ] 0
-		reg[ 2 ] 0
-		reg[ 3 ] 0
-		reg[ 4 ] 0
-		reg[ 5 ] 0
-		reg[ 6 ] 0
-		reg[ 7 ] 0
-	IFID:
-		instruction noop 0 0 0
-		pcPlus1 -12973480
-	IDEX:
-		instruction noop 0 0 0
-		pcPlus1 0
-		readRegA 6
-		readRegB 1
-		offset 0
-	EXMEM:
-		instruction noop 0 0 0
-		branchTarget -12974332
-		aluResult -14024712
-		readRegB 12
-	MEMWB:
-		instruction noop 0 0 0
-		writeData -14040720
-	WBEND:
-		instruction noop 0 0 0
-		writeData -4262240
+	@@@
+	state before cycle 0 starts
+		pc 0
+		data memory:
+			dataMem[ 0 ] 8454146
+			dataMem[ 1 ] 25165824
+			dataMem[ 2 ] 12345
+		registers:
+			reg[ 0 ] 0
+			reg[ 1 ] 0
+			reg[ 2 ] 0
+			reg[ 3 ] 0
+			reg[ 4 ] 0
+			reg[ 5 ] 0
+			reg[ 6 ] 0
+			reg[ 7 ] 0
+		IFID:
+			instruction noop 0 0 0
+			pcPlus1 -12973480
+		IDEX:
+			instruction noop 0 0 0
+			pcPlus1 0
+			readRegA 6
+			readRegB 1
+			offset 0
+		EXMEM:
+			instruction noop 0 0 0
+			branchTarget -12974332
+			aluResult -14024712
+			readRegB 12
+		MEMWB:
+			instruction noop 0 0 0
+			writeData -14040720
+		WBEND:
+			instruction noop 0 0 0
+			writeData -4262240
 
-@@@
-state before cycle 1 starts
-	pc 1
-	data memory:
-		dataMem[ 0 ] 8454146
-		dataMem[ 1 ] 25165824
-		dataMem[ 2 ] 12345
-	registers:
-		reg[ 0 ] 0
-		reg[ 1 ] 0
-		reg[ 2 ] 0
-		reg[ 3 ] 0
-		reg[ 4 ] 0
-		reg[ 5 ] 0
-		reg[ 6 ] 0
-		reg[ 7 ] 0
-	IFID:
-		instruction lw 0 1 2
-		pcPlus1 1
-	IDEX:
-		instruction noop 0 0 0
-		pcPlus1 -12973480
-		readRegA 0
-		readRegB 0
-		offset 0
-	EXMEM:
-		instruction noop 0 0 0
-		branchTarget 0
-		aluResult -14024712
-		readRegB 12
-	MEMWB:
-		instruction noop 0 0 0
-		writeData -14040720
-	WBEND:
-		instruction noop 0 0 0
-		writeData -14040720
+	@@@
+	state before cycle 1 starts
+		pc 1
+		data memory:
+			dataMem[ 0 ] 8454146
+			dataMem[ 1 ] 25165824
+			dataMem[ 2 ] 12345
+		registers:
+			reg[ 0 ] 0
+			reg[ 1 ] 0
+			reg[ 2 ] 0
+			reg[ 3 ] 0
+			reg[ 4 ] 0
+			reg[ 5 ] 0
+			reg[ 6 ] 0
+			reg[ 7 ] 0
+		IFID:
+			instruction lw 0 1 2
+			pcPlus1 1
+		IDEX:
+			instruction noop 0 0 0
+			pcPlus1 -12973480
+			readRegA 0
+			readRegB 0
+			offset 0
+		EXMEM:
+			instruction noop 0 0 0
+			branchTarget 0
+			aluResult -14024712
+			readRegB 12
+		MEMWB:
+			instruction noop 0 0 0
+			writeData -14040720
+		WBEND:
+			instruction noop 0 0 0
+			writeData -14040720
 
-@@@
-state before cycle 2 starts
-	pc 2
-	data memory:
-		dataMem[ 0 ] 8454146
-		dataMem[ 1 ] 25165824
-		dataMem[ 2 ] 12345
-	registers:
-		reg[ 0 ] 0
-		reg[ 1 ] 0
-		reg[ 2 ] 0
-		reg[ 3 ] 0
-		reg[ 4 ] 0
-		reg[ 5 ] 0
-		reg[ 6 ] 0
-		reg[ 7 ] 0
-	IFID:
-		instruction halt 0 0 0
-		pcPlus1 2
-	IDEX:
-		instruction lw 0 1 2
-		pcPlus1 1
-		readRegA 0
-		readRegB 0
-		offset 2
-	EXMEM:
-		instruction noop 0 0 0
-		branchTarget -12973480
-		aluResult -14024712
-		readRegB 12
-	MEMWB:
-		instruction noop 0 0 0
-		writeData -14040720
-	WBEND:
-		instruction noop 0 0 0
-		writeData -14040720
+	@@@
+	state before cycle 2 starts
+		pc 2
+		data memory:
+			dataMem[ 0 ] 8454146
+			dataMem[ 1 ] 25165824
+			dataMem[ 2 ] 12345
+		registers:
+			reg[ 0 ] 0
+			reg[ 1 ] 0
+			reg[ 2 ] 0
+			reg[ 3 ] 0
+			reg[ 4 ] 0
+			reg[ 5 ] 0
+			reg[ 6 ] 0
+			reg[ 7 ] 0
+		IFID:
+			instruction halt 0 0 0
+			pcPlus1 2
+		IDEX:
+			instruction lw 0 1 2
+			pcPlus1 1
+			readRegA 0
+			readRegB 0
+			offset 2
+		EXMEM:
+			instruction noop 0 0 0
+			branchTarget -12973480
+			aluResult -14024712
+			readRegB 12
+		MEMWB:
+			instruction noop 0 0 0
+			writeData -14040720
+		WBEND:
+			instruction noop 0 0 0
+			writeData -14040720
 
-@@@
-state before cycle 3 starts
-	pc 3
-	data memory:
-		dataMem[ 0 ] 8454146
-		dataMem[ 1 ] 25165824
-		dataMem[ 2 ] 12345
-	registers:
-		reg[ 0 ] 0
-		reg[ 1 ] 0
-		reg[ 2 ] 0
-		reg[ 3 ] 0
-		reg[ 4 ] 0
-		reg[ 5 ] 0
-		reg[ 6 ] 0
-		reg[ 7 ] 0
-	IFID:
-		instruction add 0 0 12345
-		pcPlus1 3
-	IDEX:
-		instruction halt 0 0 0
-		pcPlus1 2
-		readRegA 0
-		readRegB 0
-		offset 0
-	EXMEM:
-		instruction lw 0 1 2
-		branchTarget 3
-		aluResult 2
-		readRegB 0
-	MEMWB:
-		instruction noop 0 0 0
-		writeData -14040720
-	WBEND:
-		instruction noop 0 0 0
-		writeData -14040720
+	@@@
+	state before cycle 3 starts
+		pc 3
+		data memory:
+			dataMem[ 0 ] 8454146
+			dataMem[ 1 ] 25165824
+			dataMem[ 2 ] 12345
+		registers:
+			reg[ 0 ] 0
+			reg[ 1 ] 0
+			reg[ 2 ] 0
+			reg[ 3 ] 0
+			reg[ 4 ] 0
+			reg[ 5 ] 0
+			reg[ 6 ] 0
+			reg[ 7 ] 0
+		IFID:
+			instruction add 0 0 12345
+			pcPlus1 3
+		IDEX:
+			instruction halt 0 0 0
+			pcPlus1 2
+			readRegA 0
+			readRegB 0
+			offset 0
+		EXMEM:
+			instruction lw 0 1 2
+			branchTarget 3
+			aluResult 2
+			readRegB 0
+		MEMWB:
+			instruction noop 0 0 0
+			writeData -14040720
+		WBEND:
+			instruction noop 0 0 0
+			writeData -14040720
 
-@@@
-state before cycle 4 starts
-	pc 4
-	data memory:
-		dataMem[ 0 ] 8454146
-		dataMem[ 1 ] 25165824
-		dataMem[ 2 ] 12345
-	registers:
-		reg[ 0 ] 0
-		reg[ 1 ] 0
-		reg[ 2 ] 0
-		reg[ 3 ] 0
-		reg[ 4 ] 0
-		reg[ 5 ] 0
-		reg[ 6 ] 0
-		reg[ 7 ] 0
-	IFID:
-		instruction add 0 0 0
-		pcPlus1 4
-	IDEX:
-		instruction add 0 0 12345
-		pcPlus1 3
-		readRegA 0
-		readRegB 0
-		offset 12345
-	EXMEM:
-		instruction halt 0 0 0
-		branchTarget 2
-		aluResult 2
-		readRegB 0
-	MEMWB:
-		instruction lw 0 1 2
-		writeData 12345
-	WBEND:
-		instruction noop 0 0 0
-		writeData -14040720
+	@@@
+	state before cycle 4 starts
+		pc 4
+		data memory:
+			dataMem[ 0 ] 8454146
+			dataMem[ 1 ] 25165824
+			dataMem[ 2 ] 12345
+		registers:
+			reg[ 0 ] 0
+			reg[ 1 ] 0
+			reg[ 2 ] 0
+			reg[ 3 ] 0
+			reg[ 4 ] 0
+			reg[ 5 ] 0
+			reg[ 6 ] 0
+			reg[ 7 ] 0
+		IFID:
+			instruction add 0 0 0
+			pcPlus1 4
+		IDEX:
+			instruction add 0 0 12345
+			pcPlus1 3
+			readRegA 0
+			readRegB 0
+			offset 12345
+		EXMEM:
+			instruction halt 0 0 0
+			branchTarget 2
+			aluResult 2
+			readRegB 0
+		MEMWB:
+			instruction lw 0 1 2
+			writeData 12345
+		WBEND:
+			instruction noop 0 0 0
+			writeData -14040720
 
-@@@
-state before cycle 5 starts
-	pc 5
-	data memory:
-		dataMem[ 0 ] 8454146
-		dataMem[ 1 ] 25165824
-		dataMem[ 2 ] 12345
-	registers:
-		reg[ 0 ] 0
-		reg[ 1 ] 12345
-		reg[ 2 ] 0
-		reg[ 3 ] 0
-		reg[ 4 ] 0
-		reg[ 5 ] 0
-		reg[ 6 ] 0
-		reg[ 7 ] 0
-	IFID:
-		instruction add 0 0 0
-		pcPlus1 5
-	IDEX:
-		instruction add 0 0 0
-		pcPlus1 4
-		readRegA 0
-		readRegB 0
-		offset 0
-	EXMEM:
-		instruction add 0 0 12345
-		branchTarget 12348
-		aluResult 0
-		readRegB 0
-	MEMWB:
-		instruction halt 0 0 0
-		writeData 12345
-	WBEND:
-		instruction lw 0 1 2
-		writeData 12345
-machine halted
-total of 5 cycles executed
+	@@@
+	state before cycle 5 starts
+		pc 5
+		data memory:
+			dataMem[ 0 ] 8454146
+			dataMem[ 1 ] 25165824
+			dataMem[ 2 ] 12345
+		registers:
+			reg[ 0 ] 0
+			reg[ 1 ] 12345
+			reg[ 2 ] 0
+			reg[ 3 ] 0
+			reg[ 4 ] 0
+			reg[ 5 ] 0
+			reg[ 6 ] 0
+			reg[ 7 ] 0
+		IFID:
+			instruction add 0 0 0
+			pcPlus1 5
+		IDEX:
+			instruction add 0 0 0
+			pcPlus1 4
+			readRegA 0
+			readRegB 0
+			offset 0
+		EXMEM:
+			instruction add 0 0 12345
+			branchTarget 12348
+			aluResult 0
+			readRegB 0
+		MEMWB:
+			instruction halt 0 0 0
+			writeData 12345
+		WBEND:
+			instruction lw 0 1 2
+			writeData 12345
+	machine halted
+	total of 5 cycles executed
