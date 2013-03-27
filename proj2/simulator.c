@@ -168,6 +168,15 @@ printState(stateType *statePtr)
 	printf("\t\twriteData %d\n", statePtr->WBEND.writeData);
 }
 
+int convertNum(int num)
+{
+	/* convert a 16-bit number into a 32-bit Sun integer */
+	if (num & (1<<15) ) {
+		num -= (1<<16);
+	}
+	return(num);
+}
+
 /*****************************************************************************//*****************************************************************************/
 
 void initialize( stateType* );
@@ -180,7 +189,7 @@ void writeBack( const stateType, stateType* );
 
 int detectAndStall( const stateType, IDEXType* );
 void forward( const stateType, IDEXType* );
-
+void detectAndSquash( const stateType, stateType* );
 /*
 int resolveHazard( const stateType, stateType* ); // TODO: eliminate.
 void forward( const stateType, stateType* ); // TODO: eliminate
@@ -250,11 +259,15 @@ int main(int argc, const char *argv[])
 
 		state = newState; // conclusion.
 	}
-
 }
 
-/******************************************************************************
-	 * Initializes the state of this Processor.
+/*****************************************************************************/
+/*****************************************************************************/
+
+/*
+	 * Initializes the state of this Processor. simply by
+	 * setting all initial instructions to NOOP, and all
+	 * registers to zero.
  */
 void initialize( stateType* statePtr )
 {
@@ -266,26 +279,16 @@ void initialize( stateType* statePtr )
 		statePtr->reg[i] = 0;
 	}
 
-	// Init IF/ID
+	// NOOPs
 	statePtr->IFID.instr = NOOPINSTRUCTION;
-
-	// Init ID/EX
 	statePtr->IDEX.instr = NOOPINSTRUCTION;
-
-	// Init EX/MEM
 	statePtr->EXMEM.instr = NOOPINSTRUCTION;
-
-	// Init MEM/WB
 	statePtr->MEMWB.instr = NOOPINSTRUCTION;
-
-	// Init WB/END
 	statePtr->WBEND.instr = NOOPINSTRUCTION;
 }
 
-/*****************************************************************************//*****************************************************************************/
-
 /*
-	 * Read an assembly file.
+	 * Read assembly file into instrMem.
  */
 void loadInstructions( stateType* statePtr, const char *filename )
 {
@@ -343,50 +346,48 @@ void loadInstructions( stateType* statePtr, const char *filename )
 	}
 }
 
-/*****************************************************************************//*****************************************************************************/
-
+/*****************************************************************************/
 /*
- 	* Instruction Fetch Stage.
- 	*
- 	* INPUT:
-    *
- 	* OUTPUT:
- 	* 		IFID.instr;
-    * 		IFID.pcPlus1;
+	* Instruction Fetch Stage.
+	*
+	* INPUT:
+	*
+	* OUTPUT:
+	* 		IFID.instr;
+	* 		IFID.pcPlus1;
  */
 void fetch( const stateType state, stateType* newStatePtr ) 
 {
+	// Get state.
 	IFIDType output;
-
-	// Update PC.
-	newStatePtr->pc = state.pc + 1;
 
 	// Update Pipeline Register
 	output.instr = state.instrMem[state.pc];
 	output.pcPlus1 = state.pc + 1;
 
 	// Update State.
+	newStatePtr->pc = output.pcPlus1;
 	newStatePtr->IFID = output;
 }
 
-/*****************************************************************************//*****************************************************************************/
-
+/*****************************************************************************/
 /*
- 	* Instruction Decode Stage.
- 	*
- 	* INPUT:
- 	* 		IFID.instr;
-    * 		IFID.pcPlus1;
-    *
- 	* OUTPUT:
- 	* 		IDEX.instr;
-    * 		IDEX.pcPlus1;
-    * 		IDEX.readRegA;
-    * 		IDEX.readRegB;
-    * 		IDEX.offset;
+	* Instruction Decode Stage.
+	*
+	* INPUT:
+	* 		IFID.instr;
+	* 		IFID.pcPlus1;
+	*
+	* OUTPUT:
+	* 		IDEX.instr;
+	* 		IDEX.pcPlus1;
+	* 		IDEX.readRegA;
+	* 		IDEX.readRegB;
+	* 		IDEX.offset;
  */
 void decode( const stateType state, stateType* newStatePtr )
 {
+	// Get state.
 	IFIDType input = state.IFID;
 	IDEXType output;
 
@@ -397,6 +398,7 @@ void decode( const stateType state, stateType* newStatePtr )
 	output.readRegA = state.reg[ field0(input.instr) ];
 	output.readRegB = state.reg[ field1(input.instr) ];
 	output.offset = field2( input.instr );
+	output.offset = convertNum(output.offset);
 
 	if( detectAndStall( state, &output ) == 1 ) {
 		newStatePtr->pc = state.pc;
@@ -408,26 +410,26 @@ void decode( const stateType state, stateType* newStatePtr )
 	newStatePtr->IDEX = output;
 }
 
-/*****************************************************************************//*****************************************************************************/
-
+/*****************************************************************************/
 /*
- 	* Execute Stage.
- 	*
- 	* INPUT:
- 	* 		IDEX.instr;
-    * 		IDEX.pcPlus1;
-    * 		IDEX.readRegA;
-    * 		IDEX.readRegB;
-    * 		IDEX.offset;
-    *
- 	* OUTPUT:
- 	* 		EXMEM.instr;
-    * 		EXMEM.branchTarget;
-    * 		EXMEM.aluResult;
-    * 		EXMEM.readRegB;
+	* Execute Stage.
+	*
+	* INPUT:
+	* 		IDEX.instr;
+	* 		IDEX.pcPlus1;
+	* 		IDEX.readRegA;
+	* 		IDEX.readRegB;
+	* 		IDEX.offset;
+	*
+	* OUTPUT:
+	* 		EXMEM.instr;
+	* 		EXMEM.branchTarget;
+	* 		EXMEM.aluResult;
+	* 		EXMEM.readRegB;
  */
 void execute( const stateType state, stateType* newStatePtr )
 {
+	// Get state.
 	IDEXType input = state.IDEX;
 	EXMEMType output;
 
@@ -436,7 +438,7 @@ void execute( const stateType state, stateType* newStatePtr )
 	// noop.
 	output.instr = input.instr;
 
-	// now forward data that might needed.
+	// now forward data that might be needed.
 	forward( state, &input );
 
 	// shorthand.
@@ -483,6 +485,7 @@ void execute( const stateType state, stateType* newStatePtr )
 		case BEQ:
 			// Check equality.
 			output.aluResult = (dataRegA == dataRegB);
+			output.branchTarget = input.pcPlus1 + offset;
 			break;
 		/*-------------------------------------------------------------*/
 		case HALT:
@@ -491,7 +494,7 @@ void execute( const stateType state, stateType* newStatePtr )
 			break;
 		/*-------------------------------------------------------------*/
 		default: 
-		// Error.
+			// Error.
 			fprintf( stderr, "ERROR: Instruction not recognized:" );
 			printInstruction(state.IDEX.instr);
 			exit(1);
@@ -503,24 +506,25 @@ void execute( const stateType state, stateType* newStatePtr )
 	newStatePtr->EXMEM = output;
 }
 
-/*****************************************************************************//*****************************************************************************/
-
+/*****************************************************************************/
 /*
- 	* Memory Operations Stage.
- 	*
- 	* INPUT:
- 	* 		EXMEM.instr;
-    * 		EXMEM.branchTarget;
-    * 		EXMEM.aluResult;
-    * 		EXMEM.readRegB;
-    *
- 	* OUTPUT:
- 	*		MEMWB.instr;
- 	*		MEMWB.writeData;
- 	*	
+	*
+	* Memory Operations Stage.
+	*
+	* INPUT:
+	* 		EXMEM.instr;
+	* 		EXMEM.branchTarget;
+	* 		EXMEM.aluResult;
+	* 		EXMEM.readRegB;
+	*
+	* OUTPUT:
+	*		MEMWB.instr;
+	*		MEMWB.writeData;
+	*	
  */
 void memory( const stateType state, stateType* newStatePtr )
 {
+	// Get state.
 	EXMEMType input = state.EXMEM;
 	MEMWBType output;
 
@@ -551,23 +555,24 @@ void memory( const stateType state, stateType* newStatePtr )
 
 	// Update State.
 	newStatePtr->MEMWB = output;
+	detectAndSquash( state, newStatePtr );
 }
 
-/*****************************************************************************//*****************************************************************************/
-
+/*****************************************************************************/
 /*
- 	* Writeback Stage.
- 	*
- 	* INPUT:
- 	*		MEMWB.instr;
- 	*		MEMWB.writeData;
-    *
- 	* OUTPUT:
- 	*		WBEND.instr;
- 	*		WBEND.writeData;
+	* Writeback Stage.
+	*
+	* INPUT:
+	*		MEMWB.instr;
+	*		MEMWB.writeData;
+	*
+	* OUTPUT:
+	*		WBEND.instr;
+	*		WBEND.writeData;
  */
 void writeBack( const stateType state, stateType* newStatePtr )
 {
+	// Get state.
 	MEMWBType input = state.MEMWB;
 	WBENDType output;
 
@@ -605,9 +610,9 @@ void writeBack( const stateType state, stateType* newStatePtr )
 	newStatePtr->WBEND = output;
 }
 
-/*****************************************************************************//*****************************************************************************/
+/*****************************************************************************/
 //	HAZARD RESOLUTION
-/*****************************************************************************//*****************************************************************************/
+/*****************************************************************************/
 
 /*
 	* 	Hazard resolver. Analyzes previous state for any data hazards
@@ -627,7 +632,7 @@ int detectAndStall( const stateType state, IDEXType* IDEX )
 			&& (regA == field1(state.IDEX.instr) || regB == field1(state.IDEX.instr)) );
 }
 
-/*****************************************************************************//*****************************************************************************/
+/*****************************************************************************/
 
 /*
 	*	Pipeline registers are checked for data hazards
@@ -757,7 +762,7 @@ void forward( const stateType state, IDEXType* IDEX )
 			if( regA == field1(state.EXMEM.instr)
 				|| regB == field1(state.EXMEM.instr) )
 			{
-				// Uncaught error.
+				// Uncaught error. I'd rather exit than have erroneous output.
 				fprintf(stderr, "ERROR: Uncaught stall!\n");
 				exit(1);
 			}
@@ -771,5 +776,25 @@ void forward( const stateType state, IDEXType* IDEX )
 			break;
 		/*-------------------------------------------------------------*/
 	}
+}
 
+/*****************************************************************************/
+
+/*
+	* Control Hazard resolution. Detects if a branch should be taken
+	* and updates state accordingly. Since branches are always predicted
+	* as taken, instructions are overwritten mid-flight by this function.
+*/
+void detectAndSquash( const stateType state, stateType* newStatePtr )
+{
+	// Make sure branch was detected.
+	if( opcode(state.EXMEM.instr) == BEQ 
+		&& state.EXMEM.aluResult == 1 )
+	{
+		// Now react.
+		newStatePtr->IFID.instr = NOOPINSTRUCTION;
+		newStatePtr->IDEX.instr = NOOPINSTRUCTION;
+		newStatePtr->EXMEM.instr = NOOPINSTRUCTION;
+		newStatePtr->pc = state.EXMEM.branchTarget;
+	}
 }
