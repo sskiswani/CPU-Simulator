@@ -257,7 +257,7 @@ int main(int argc, const char *argv[])
 		/* --------------------- WB stage --------------------- */
 		writeBack( state, &newState );
 
-		state = newState; // conclusion.
+		state = newState; // conclusion: update state.
 	}
 }
 
@@ -446,6 +446,11 @@ void execute( const stateType state, stateType* newStatePtr )
 	int dataRegB = input.readRegB;
 	int offset = input.offset;
 
+
+	output.readRegB = dataRegB;
+	output.branchTarget = input.pcPlus1 + offset;
+
+
 	switch( opcode(state.IDEX.instr) )
 	{
 		/*-------------------------------------------------------------*/
@@ -485,7 +490,6 @@ void execute( const stateType state, stateType* newStatePtr )
 		case BEQ:
 			// Check equality.
 			output.aluResult = (dataRegA == dataRegB);
-			output.branchTarget = input.pcPlus1 + offset;
 			break;
 		/*-------------------------------------------------------------*/
 		case HALT:
