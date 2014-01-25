@@ -5,11 +5,13 @@
 		      Due: 1:00 pm, Monday, Feb 11, 2013
 
 1. Purpose
+-----------
 
 This project is intended to help you understand the instructions of a very
 simple assembly language and how to assemble programs into machine language.
 
 2. Problem
+-----------
 
 This project has three parts.  In the first part, you will write a program to
 take an assembly-language program and produce the corresponding machine
@@ -18,6 +20,7 @@ resulting machine code.  In the third part, you will write a short
 assembly-language program to multiply two numbers.
 
 3. LC3101 Instruction-Set Architecture
+-----------
 
 For this project, you will be developing a simulator and assembler for the
 LC3101 (Little Computer, used in CDA 3101). The LC3101 is very simple, but
@@ -32,7 +35,7 @@ program should ever change register 0 from its initial value of 0).
 
 There are 3 instruction formats (bit 0 is the least-significant bit).  Bits
 31-25 are unused for all instructions, and should always be 0.
-
+```
 R-type instructions (add, nand):
     bits 24-22: opcode
     bits 21-19: reg A
@@ -49,6 +52,7 @@ I-type instructions (lw, sw, beq):
 O-type instructions (halt, noop):
     bits 24-22: opcode
     bits 21-0:  unused (should all be 0)
+```
 
 -------------------------------------------------------------------------------
 Table 1: Description of Machine Instructions
@@ -94,6 +98,7 @@ noop (O-type format)	111			do nothing except increment PC.
 -------------------------------------------------------------------------------
 
 4. LC3101 Assembly Language and Assembler (40%)
+-----------
 
 The first part of this project is to write a program to take an
 assembly-language program and translate it into machine language. You will
@@ -104,7 +109,7 @@ instructions (instruction bits 31-25 are always 0).
 
 The format for a line of assembly code is:
 
-label  instruction  field0  field1  field2  comments
+`label  instruction  field0  field1  field2  comments`
 
 The leftmost field on a line is the label field.  Valid labels contain a
 maximum of 6 characters and can consist of letters and numbers (but must start
@@ -159,7 +164,7 @@ that the first instruction is at address 0.  In the second pass, it will
 generate a machine-language instruction (in decimal) for each line of assembly
 language.  For example, here is an assembly-language program (that counts down
 from 5, stopping when it hits 0).
-
+```
 	lw	0	1	five	load reg1 with 5 (uses symbolic address)
 	lw	1	2	3	load reg2 with -1 (uses numeric address)
 start	add	1	2	1	decrement reg1
@@ -170,9 +175,9 @@ done	halt				end of program
 five	.fill	5
 neg1	.fill	-1
 stAddr	.fill	start			will contain the address of start (2)
-
+```
 And here is the corresponding machine language:
-
+```
 (address 0): 8454151 (hex 0x810007)
 (address 1): 9043971 (hex 0x8a0003)
 (address 2): 655361 (hex 0xa0001)
@@ -183,13 +188,13 @@ And here is the corresponding machine language:
 (address 7): 5 (hex 0x5)
 (address 8): -1 (hex 0xffffffff)
 (address 9): 2 (hex 0x2)
-
+```
 Be sure you understand how the above assembly-language program got translated
 to machine language.
 
 Since your programs will always start at address 0, your program should only
 output the contents, not the addresses.
-
+```
 8454151
 9043971
 655361
@@ -200,8 +205,10 @@ output the contents, not the addresses.
 5
 -1
 2
+```
 
 4.1. Running Your Assembler
+-----------
 
 Write your program to take two command-line arguments.  The first argument is
 the file name where the assembly-language program is stored, and the second
@@ -209,7 +216,7 @@ argument is the file name where the output (the machine-code) is written.
 For example, with a program name of "assemble", an assembly-language program
 in "program.as", the following would generate a machine-code file "program.mc":
     
-    assemble program.as program.mc
+`    assemble program.as program.mc`
 
 Note that the format for running the command must use command-line arguments
 for the file names (rather than standard input and standard output).  Your
@@ -220,6 +227,7 @@ other output that you want the program to generate (e.g. debugging output) can
 be printed to standard output.
 
 4.2. Error Checking
+-----------
 
 Your assembler should catch the following errors in the assembly-language
 program: use of undefined labels, duplicate labels, offsetFields that don't fit
@@ -230,6 +238,7 @@ at the time the assembly-language program executes (e.g. branching to address
 -1, infinite loops, etc.).
 
 4.3. Test Cases
+-----------
 
 An integral (and graded) part of writing your assembler will be to write a
 suite of test cases to validate any LC3101 assembler.  This is common practice
@@ -254,6 +263,7 @@ credit.  Remember to create some test cases that test the ability of an
 assembler to check for the errors in Section 4.2.
 
 4.4. Assembler Hints
+-----------
 
 Since offsetField is a 2's complement number, it can only store numbers ranging
 from -32768 to 32767.  For symbolic addresses, your assembler will compute
@@ -264,6 +274,7 @@ machines you run your assembler on have 32-bit or 64-bit integers, you will
 have to truncate all but the lowest 16 bits for negative values of offsetField.
 
 5. Behavioral Simulator (40%)
+-----------
 
 The second part of this assignment is to write a program that can simulate any
 legal LC3101 machine-code program.  The input for this part will be the
@@ -271,7 +282,7 @@ machine-code file that you created with your assembler.  With a program name
 of "simulate" and a machine-code file of "program.mc", your program should be
 run as follows:
 
-    simulate program.mc > output
+`    simulate program.mc > output`
 
 This directs all print statements to the file "output".
 
@@ -286,6 +297,7 @@ will print the memory contents for memory locations defined in the machine-code
 file (addresses 0-9 in the Section 4 example).
 
 5.1 Test Cases
+-----------
 
 As with the assembler, you will write a suite of test cases to validate the
 LC3101 simulator.
@@ -302,12 +314,13 @@ less than 40 instructions).  See Section 7 for how your test suite will be
 graded.
 
 5.2. Simulator Hints
+-----------
 
 Be careful how you handle offsetField for lw, sw, and beq. Remember that it's
 a 2's complement 16-bit number, so you need to convert a negative offsetField
 to a negative 32-bit integer on the Sun workstations (by sign extending it).
 To do this, use the following function.
-
+```c
     int
     convertNum(int num)
     {
@@ -317,6 +330,7 @@ To do this, use the following function.
 	}
 	return(num);
     }
+```
 
 An example run of the simulator (not for the specified task of multiplication)
 is included at the end of this posting.
@@ -342,6 +356,7 @@ such as successive addition (e.g. multiplying 5 * 6 by adding 5 six times)
 will take too long.
 
 7. Grading and Formatting
+-----------
 
 We will grade primarily on functionality, including error handling, correctly
 assembling and simulating all instructions, input and output format, method of
@@ -372,6 +387,7 @@ correct simulator.  The test suite is graded based on how many of the buggy
 simulators were exposed by at least one test case.
 
 8. Turning in the Project
+-----------
 
 Submit you files through blackboard.
 Each part should be archived in a .tar or .zip file to help with grading. 
@@ -399,6 +415,7 @@ is sent. If you send in anything after the due date, your project will be
 considered late (and will use up your late days or will receive a zero).
 
 9. Code Fragment for Assembler
+-----------
 
 The focus of this class is machine organization, not C programming skills.  To
 "build" your computer, however, you will be doing a lot of C programming.  To
@@ -407,7 +424,7 @@ how to specify command-line arguments to the program (via argc and argv), how
 to parse the assembly-language file, etc..  This fragment is provided strictly
 to help you, though it may take a bit for you to understand and use the file.
 You may also choose to not use this fragment.
-
+```c
 /* Assembler code fragment for LC3101 */
 
 #include <stdlib.h>
@@ -523,16 +540,17 @@ isNumber(char *string)
     int i;
     return( (sscanf(string, "%d", &i)) == 1);
 }
-
+```
 
 
 10. Code Fragment for Simulator
+-----------
 
 Here is some C code that may help you write the simulator.  Again, you should
 take this merely as a hint.  You may have to re-code this to make it do exactly
 what you want, but this should help you get started.  Remember not to
 change stateStruct or printState.
-
+```c
 /* instruction-level simulator for LC3101 */
 
 #include <stdio.h>
@@ -599,8 +617,10 @@ printState(stateType *statePtr)
 	}
     printf("end state\n");
 }
+```
 
 11. Programming Tips
+-----------
 
 Here are a few programming tips for writing C/C++ programs to manipulate bits:
 
@@ -643,7 +663,8 @@ operation is doing, print some intermediate results to help you debug.
 -------------------------------------------------------------------------------
 
 12. Example Run of Simulator
-
+-----------
+```c
 memory[0]=8454151
 memory[1]=9043971
 memory[2]=655361
@@ -1108,3 +1129,4 @@ state:
 		reg[ 6 ] 0
 		reg[ 7 ] 0
 end state
+```
