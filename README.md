@@ -1,5 +1,3 @@
-Projects for Computer Organization II, taught by Gary Tyson at Florida State University. My favorite CS class as of 5/22/13.
-
 proj1
 -----
 
